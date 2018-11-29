@@ -18,7 +18,6 @@ logger.setLevel(logging.INFO)
 
 # Environment variables
 ITEM_TABLE = 'freecycle-items'
-FREECYCLE_GROUP = 'SouthwarkUK'
 S3_BUCKET = 'freecycle-scraping'
 AWS_REGION = 'eu-west-1'
 TABLE_ID = 'group_posts_table'
@@ -49,7 +48,7 @@ def string_found(string1, string2):
     return re.search(r"\b" + re.escape(string1) + r"\b", string2) != None
 
 
-def send_email(item):
+def send_email(item, freecycle_group):
     body_html = """<html>
     <head></head>
     <body>
@@ -76,7 +75,7 @@ def send_email(item):
                 },
                 'Subject': {
                     'Charset': "UTF-8",
-                    'Data': "Matched item: %s on Freecycle group %s" % (item['title'], FREECYCLE_GROUP),
+                    'Data': "Matched item: %s on Freecycle group %s" % (item['title'], freecycle_group),
                 },
             },
             Source=SENDER
@@ -85,14 +84,21 @@ def send_email(item):
     except ClientError as e:
         logger.error(e.response['Error']['Message'])
         raise ClientError
+    except Exception as error:
+        raise Exception('Error: %s' % error)
+
     else:
         print("Email sent! Message ID:"),
         print(response['MessageId'])
 
 
 def lambda_handler(event, context):
+
+    logger.info('Event received: %s' % event)
+    freecycle_group = event['FREECYCLE_GROUP']
+
     try:
-        object = s3.Object(S3_BUCKET, FREECYCLE_GROUP)
+        object = s3.Object(S3_BUCKET, freecycle_group)
         last_item = json.loads(object.get()['Body'].read().decode('utf-8'))
         last_item_hash = last_item['hash']
     except:
@@ -104,7 +110,7 @@ def lambda_handler(event, context):
     freecycle_page = 1
     row_number = 0
     items = []
-    table = extract_table_from_html(TABLE_URL % (FREECYCLE_GROUP, freecycle_page), TABLE_ID)
+    table = extract_table_from_html(TABLE_URL % (freecycle_group, freecycle_page), TABLE_ID)
     running = True
 
     while running:
@@ -113,7 +119,7 @@ def lambda_handler(event, context):
             if row_number == 10:
                 freecycle_page += 1
                 sleep(2)
-                table = extract_table_from_html(TABLE_URL % (FREECYCLE_GROUP, freecycle_page), TABLE_ID)
+                table = extract_table_from_html(TABLE_URL % (freecycle_group, freecycle_page), TABLE_ID)
                 row_number = 0
 
             row = table.findAll('tr')[row_number]
@@ -140,7 +146,7 @@ def lambda_handler(event, context):
 
             if matching_item and offer_or_wanted == 'OFFER':
                 print('Matched item: %s' % item_details['title'])
-                send_email(item_details)
+                send_email(item_details, freecycle_group = freecycle_group)
 
             if item_hash == last_item_hash or len(items) == MAX_NUMBER_TO_SCAN:
 
@@ -155,9 +161,9 @@ def lambda_handler(event, context):
         except ClientError as e:
             print('Email error: %s' % e)
 
-        except:
+        except Exception as error:
+            logger.info('Error: %s' % error)
             logger.info('Could not parse item %d on page %d' % (len(items), freecycle_page))
-            print('Could not parse item %d on page %d' % (len(items), freecycle_page))
 
         finally:
             row_number += 1
@@ -166,4 +172,4 @@ def lambda_handler(event, context):
 
 
 if __name__ == "__main__":
-    lambda_handler({}, {})
+    lambda_handler({"FREECYCLE_GROUP":"LambethUK"}, {})
