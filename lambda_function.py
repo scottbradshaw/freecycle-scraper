@@ -88,8 +88,8 @@ def send_email(item, freecycle_group):
         raise Exception('Error: %s' % error)
 
     else:
-        print("Email sent! Message ID:"),
-        print(response['MessageId'])
+        logger.info("Email sent! Message ID:"),
+        logger.info(response['MessageId'])
 
 
 def lambda_handler(event, context):
@@ -142,11 +142,7 @@ def lambda_handler(event, context):
                                  ('hash', item_hash)])
             items.append(item_details)
 
-            matching_item = any([string_found(keyword,item_details['title']) for keyword in ITEM_KEYWORDS])
-
-            if matching_item and offer_or_wanted == 'OFFER':
-                print('Matched item: %s' % item_details['title'])
-                send_email(item_details, freecycle_group = freecycle_group)
+            matching_item = any([string_found(keyword, item_details['title']) for keyword in ITEM_KEYWORDS])
 
             if item_hash == last_item_hash or len(items) == MAX_NUMBER_TO_SCAN:
 
@@ -155,15 +151,19 @@ def lambda_handler(event, context):
 
                 logger.info('INFO: Previously scraped item reached')
 
+            elif matching_item and offer_or_wanted == 'OFFER':
+                logger.info('Matched item: %s' % item_details['title'])
+                send_email(item_details, freecycle_group=freecycle_group)
+
             else:
-                print('Scraped %s' % item_details['title'])
+                logger.info('Scraped %s' % item_details['title'])
 
         except ClientError as e:
-            print('Email error: %s' % e)
+            logger.error('Email error: %s' % e)
 
         except Exception as error:
-            logger.info('Error: %s' % error)
-            logger.info('Could not parse item %d on page %d' % (len(items), freecycle_page))
+            logger.error('Error: %s' % error)
+            logger.error('Could not parse item %d on page %d' % (len(items), freecycle_page))
 
         finally:
             row_number += 1
