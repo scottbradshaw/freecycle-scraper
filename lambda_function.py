@@ -23,12 +23,12 @@ AWS_REGION = 'eu-west-1'
 TABLE_ID = 'group_posts_table'
 TABLE_URL = 'https://groups.freecycle.org/group/%s/posts/all?page=%d&resultsperpage=10'
 MAX_NUMBER_TO_SCAN = 100
-ITEM_KEYWORDS = ['table', 'tables', 'wood', 'dining', 'sofa', 'sofabed', 'jar', 'jars']
+ITEM_KEYWORDS = ['table', 'tables', 'wood', 'dining', 'sofa', 'sofabed', 'jar', 'jars', 'fork', 'spade', 'garden']
 
 # Create aws connections
-session = boto3.session.Session(profile_name='freecycle', region_name=AWS_REGION)
-s3 = session.resource('s3')
-ses = session.client('ses', region_name=AWS_REGION)
+# session = boto3.session.Session(profile_name='freecycle', region_name=AWS_REGION)
+s3 = boto3.resource('s3')
+ses = boto3.client('ses', region_name=AWS_REGION)
 
 RECIPIENT = ses.list_verified_email_addresses()['VerifiedEmailAddresses'][0]
 SENDER = "Freecycle Scraper <%s>" % RECIPIENT
@@ -93,7 +93,6 @@ def send_email(item, freecycle_group):
 
 
 def lambda_handler(event, context):
-
     logger.info('Event received: %s' % event)
     freecycle_group = event['FREECYCLE_GROUP']
 
@@ -101,6 +100,7 @@ def lambda_handler(event, context):
         object = s3.Object(S3_BUCKET, freecycle_group)
         last_item = json.loads(object.get()['Body'].read().decode('utf-8'))
         last_item_hash = last_item['hash']
+        logger.info('S3 json: %s' % last_item)
     except:
         logger.info('No stored file on S3')
         last_item = {}
@@ -142,7 +142,7 @@ def lambda_handler(event, context):
                                  ('hash', item_hash)])
             items.append(item_details)
 
-            matching_item = any([string_found(keyword, item_details['title']) for keyword in ITEM_KEYWORDS])
+            matching_item = any([string_found(keyword, item_details['title'].lower()) for keyword in ITEM_KEYWORDS])
 
             if item_hash == last_item_hash or len(items) == MAX_NUMBER_TO_SCAN:
 
