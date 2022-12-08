@@ -1,4 +1,4 @@
 urllib3==1.23
-certifi==2018.10.15
+certifi==2022.12.7
 beautifulsoup4==4.6.3
 boto3==1.9.50
